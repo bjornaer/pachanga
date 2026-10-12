@@ -1,0 +1,1 @@
+{ "compilerOptions": { "strict": true, "noEmit": true, "module": "esnext", "moduleResolution": "bundler", "target": "es2022", "resolveJsonModule": true, "skipLibCheck": true }, "include": ["src"] }

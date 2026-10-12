@@ -1,0 +1,288 @@
+openapi: 3.0.3
+info:
+  title: Pachanga API
+  version: 0.0.1
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+paths:
+  /healthz:
+    get:
+      operationId: health
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string }
+
+  /v1/auth/signup:
+    post:
+      operationId: signup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignupRequest" }
+      responses:
+        "201": { $ref: "#/components/responses/Tokens" }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/login:
+    post:
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Tokens" }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/oauth/{provider}:
+    post:
+      operationId: oauthLogin
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string, enum: [apple, google] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OAuthRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Tokens" }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/refresh:
+    post:
+      operationId: refresh
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Tokens" }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "204": { description: Logged out }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/verify-email:
+    post:
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, pattern: "^[0-9]{6}$" }
+      responses:
+        "204": { description: Verified }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/verify-email/resend:
+    post:
+      operationId: resendVerification
+      responses:
+        "204": { description: Queued }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/password-reset:
+    post:
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "204": { description: Queued if the account exists }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/auth/password-reset/confirm:
+    post:
+      operationId: confirmPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code, new_password]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string, pattern: "^[0-9]{6}$" }
+                new_password: { type: string, minLength: 10, maxLength: 128 }
+      responses:
+        "204": { description: Password changed; all sessions revoked }
+        default: { $ref: "#/components/responses/Problem" }
+  /v1/me:
+    get:
+      operationId: getMe
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        default: { $ref: "#/components/responses/Problem" }
+
+  /admin/v1/auth/login:
+    post:
+      operationId: adminLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, totp]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                totp: { type: string, pattern: "^[0-9]{6}$" }
+      responses:
+        "200": { $ref: "#/components/responses/Tokens" }
+        default: { $ref: "#/components/responses/Problem" }
+  /admin/v1/me:
+    get:
+      operationId: adminGetMe
+      responses:
+        "200":
+          description: Current admin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        default: { $ref: "#/components/responses/Problem" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Tokens:
+      description: Token pair
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/TokenPair" }
+    Problem:
+      description: RFC 9457 problem
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, description: Stable machine-readable error code }
+        detail: { type: string }
+    Gender:
+      type: string
+      enum: [male, female, non_binary, prefer_not_to_say]
+    GeoPoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, format: double, minimum: -90, maximum: 90 }
+        lng: { type: number, format: double, minimum: -180, maximum: 180 }
+    Profile:
+      type: object
+      required: [display_name, birth_date, gender, home_location, adult_attested, terms_version]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 50 }
+        birth_date: { type: string, format: date }
+        gender: { $ref: "#/components/schemas/Gender" }
+        home_location: { $ref: "#/components/schemas/GeoPoint" }
+        adult_attested: { type: boolean, description: Must be true }
+        terms_version: { type: string }
+        locale: { type: string, enum: [es-ES, en] }
+    SignupRequest:
+      allOf:
+        - $ref: "#/components/schemas/Profile"
+        - type: object
+          required: [email, password]
+          properties:
+            email: { type: string, format: email }
+            password: { type: string, minLength: 10, maxLength: 128 }
+            device: { $ref: "#/components/schemas/DeviceAttestation" }
+    DeviceAttestation:
+      type: object
+      description: DeviceCheck (ios) / Play Integrity (android) token; read server-side for ban bits.
+      required: [platform, token]
+      properties:
+        platform: { type: string, enum: [ios, android] }
+        token: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        device: { $ref: "#/components/schemas/DeviceAttestation" }
+    OAuthRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token: { type: string }
+        profile:
+          $ref: "#/components/schemas/Profile"
+        device: { $ref: "#/components/schemas/DeviceAttestation" }
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token, expires_in]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, description: Access token lifetime in seconds }
+    Me:
+      type: object
+      required: [id, email, email_verified, display_name, gender, home_location, locale, status, role]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        email_verified: { type: boolean }
+        display_name: { type: string }
+        birth_date: { type: string, format: date }
+        gender: { $ref: "#/components/schemas/Gender" }
+        home_location: { $ref: "#/components/schemas/GeoPoint" }
+        locale: { type: string }
+        status: { type: string, enum: [active, pending_review, suspended, banned, deleted] }
+        role: { type: string, enum: [user, super_admin] }

@@ -1,0 +1,8 @@
+{
+  "name": "pachanga",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

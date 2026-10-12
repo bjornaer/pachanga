@@ -1,0 +1,35 @@
+# DigitalOcean App Platform spec (staging). Apply: doctl apps create --spec .do/app.yaml
+# Secrets (JWT_SECRET, BREVO_API_KEY, MAILJET_API_KEY, OAuth client IDs) are set in the DO console. See status.json Q2/Q3.
+name: pachanga-staging
+region: ams
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    production: false
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    dockerfile_path: services/api/Dockerfile
+    run_command: api migrate
+    envs: &envs
+      - { key: DATABASE_URL, scope: RUN_TIME, value: "${db.DATABASE_URL}" }
+      - { key: APP_ENV, value: staging }
+      - { key: JWT_SECRET, type: SECRET }
+      - { key: EMAIL_PROVIDERS, value: "brevo,mailjet" }
+      - { key: BREVO_API_KEY, type: SECRET }
+      - { key: MAILJET_API_KEY, type: SECRET }
+      - { key: MAIL_FROM, value: no-reply@pachanga.app }
+      - { key: TRUSTED_PROXIES, value: "1" }
+services:
+  - name: api
+    dockerfile_path: services/api/Dockerfile
+    run_command: api
+    http_port: 8080
+    health_check: { http_path: /healthz }
+    envs: *envs
+workers:
+  - name: worker
+    dockerfile_path: services/api/Dockerfile
+    run_command: worker
+    envs: *envs

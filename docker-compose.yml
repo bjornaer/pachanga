@@ -1,0 +1,40 @@
+x-app: &app
+  build: { context: ., dockerfile: services/api/Dockerfile }
+  environment:
+    DATABASE_URL: postgres://pachanga:pachanga@db:5432/pachanga?sslmode=disable
+    JWT_SECRET: dev-only-secret-change-me-0123456789abcdef
+    APP_ENV: dev
+    EMAIL_PROVIDERS: console
+  depends_on:
+    db: { condition: service_healthy }
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment: { POSTGRES_USER: pachanga, POSTGRES_PASSWORD: pachanga, POSTGRES_DB: pachanga }
+    ports: ["5432:5432"]
+    volumes: [db:/var/lib/postgresql/data]
+    healthcheck:
+      test: pg_isready -h localhost -U pachanga # TCP: init-time server is socket-only
+      interval: 2s
+      retries: 30
+  storage: # S3-compatible (MinIO no longer publishes images)
+    image: chrislusf/seaweedfs:3.97
+    command: server -s3 -dir=/data
+    ports: ["8333:8333"]
+    volumes: [storage:/data]
+  migrate:
+    <<: *app
+    command: ["api", "migrate"]
+  api:
+    <<: *app
+    ports: ["8080:8080"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+  worker:
+    <<: *app
+    command: ["worker"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+volumes: { db: {}, storage: {} }

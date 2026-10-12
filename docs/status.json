@@ -1,0 +1,72 @@
+{
+  "updated_at": "2026-10-12",
+  "spec": "docs/SPEC.md",
+  "current_milestone": "M0",
+  "milestones": {
+    "M0": {
+      "status": "done_locally",
+      "note": "Everything that can run locally passes. Remaining DoD items need external accounts (Q2, Q3).",
+      "dod": {
+        "compose_up_and_seed": { "status": "done", "evidence": "make up -> api/worker/db/storage running, /healthz ok; make seed -> 20 Madrid players + admin" },
+        "mobile_auth_against_staging": { "status": "blocked", "blocked_by": ["Q2"], "evidence": "Flow passes against local API (integration test TestAuthFlow + curl). Staging not deployed yet." },
+        "admin_totp_login": { "status": "done", "evidence": "TestAdminLogin; manual curl via Vite proxy with seeded TOTP" },
+        "ci_green": { "status": "blocked", "blocked_by": ["Q3"], "evidence": "make ci passes locally (lint 0 issues, drift clean, unit+integration ok, admin build, mobile export). No GitHub remote yet." },
+        "ios_android_dev_builds": { "status": "blocked", "blocked_by": ["Q4"], "evidence": "expo export -p ios -p android succeeds. No Xcode/Android SDK locally; EAS needs an Expo account." }
+      }
+    },
+    "M1": { "status": "todo" }, "M2": { "status": "todo" }, "M3": { "status": "todo" },
+    "M4": { "status": "todo" }, "M5": { "status": "todo" }, "M6": { "status": "todo" }
+  },
+  "decisions": [
+    { "id": "D1", "date": "2026-10-12", "text": "docs/status.json is the machine-readable state for agent iterations. docs/DECISIONS.md and docs/MILESTONES.md (spec §0) are written from it at each milestone completion." },
+    { "id": "D2", "date": "2026-10-12", "text": "Spec copied to docs/SPEC.md so iterations don't depend on ~/Downloads." },
+    { "id": "D3", "date": "2026-10-12", "text": "Agent workflow: plan mode per milestone; haiku subagents for fully-specified mechanical subtasks; lead model for rules/architecture. Recorded in CLAUDE.md." },
+    { "id": "D4", "date": "2026-10-12", "text": "Spec-first OpenAPI: docs/openapi.yaml is hand-written; oapi-codegen (chi strict server + embedded spec) generates Go, openapi-typescript + openapi-fetch generate packages/api-client. Drift check = make gen + git diff." },
+    { "id": "D5", "date": "2026-10-12", "text": "Requests validated against the OpenAPI spec by kin-openapi middleware (trust boundary). Errors are RFC 9457 with stable `code`; services return *platform.Problem." },
+    { "id": "D6", "date": "2026-10-12", "text": "npm workspaces instead of pnpm (already installed). Go tools (sqlc, oapi-codegen, golangci-lint) run pinned via `go run` from the Makefile: no global installs." },
+    { "id": "D7", "date": "2026-10-12", "text": "Migrations live in db/migrations (golang-migrate files); `api migrate` applies them plus River's schema. Compose runs it as a one-shot service before api/worker; DO runs it as a PRE_DEPLOY job." },
+    { "id": "D8", "date": "2026-10-12", "text": "Each milestone adds only the tables it needs (M0: users, email_codes, refresh_tokens, email_provider_usage, config, audit_log). Seed grows per milestone; M0 seeds users + super admin only." },
+    { "id": "D9", "date": "2026-10-12", "text": "auth_providers stored as nullable apple_sub / google_sub columns, not a separate table." },
+    { "id": "D10", "date": "2026-10-12", "text": "Signup takes all §4.1 mandatory fields already in M0 (same endpoint). Under-18 rejected with code `underage` before any write. Home location snapped to a 0.005° grid (~500 m)." },
+    { "id": "D11", "date": "2026-10-12", "text": "Tokens: HS256 access JWT 15 min with audience `app` or `admin`; opaque refresh tokens (30 days) stored as HMAC-SHA256; rotation per use; presenting a used token revokes the whole family. Password reset revokes all sessions." },
+    { "id": "D12", "date": "2026-10-12", "text": "Email codes (verify/reset) are HMAC'd with the server secret; attempts are counted before checking (committed even on failure), max 5, 15 min TTL." },
+    { "id": "D13", "date": "2026-10-12", "text": "OAuth: Apple/Google ID tokens verified with go-oidc against issuer JWKS. Known sub logs in; a provider-verified email that matches an existing account links it; unknown accounts get 422 profile_required and resend with profile. Unconfigured provider returns 503 provider_not_configured." },
+    { "id": "D14", "date": "2026-10-12", "text": "Admin: users.role = super_admin plus totp_secret. /admin/v1/auth/login needs password + TOTP and issues admin-audience tokens. Every admin request re-checks the role in the DB. Admin web keeps tokens in memory only." },
+    { "id": "D15", "date": "2026-10-12", "text": "Email goes through a River job (send_code_email). Failover sender walks EMAIL_PROVIDERS in order with daily caps from the email_provider_usage table; when every provider is capped the job snoozes 1 h. `console` provider logs emails in dev." },
+    { "id": "D16", "date": "2026-10-12", "text": "DeviceChecker interface with a NoDeviceCheck stub until Apple DeviceCheck / Play Integrity credentials exist. A flagged device sends signups to status pending_review (M1 DoD)." },
+    { "id": "D17", "date": "2026-10-12", "text": "Object storage locally is SeaweedFS (S3 API on :8333): MinIO no longer publishes Docker images. Prod/staging uses DO Spaces." },
+    { "id": "D18", "date": "2026-10-12", "text": "Auth rate limit: 20 req/min per client IP on /auth/* paths, in memory. The client IP comes from RemoteAddr, or from X-Forwarded-For when TRUSTED_PROXIES is greater than 0." },
+    { "id": "D19", "date": "2026-10-12", "text": "Mobile: access token in memory, refresh token in expo-secure-store; a 401 triggers one refresh and retry. Signup home area uses device location in M0; the map pin picker comes with M1 maps." },
+    { "id": "D20", "date": "2026-10-12", "text": "TERMS_VERSION is duplicated in packages/i18n and the server env (default 2026-10). A forced re-acceptance flow is M1 scope (§8)." }
+  ],
+  "findings": [
+    { "date": "2026-10-12", "text": "Local toolchain: go 1.26.5, node 26.7, npm 11.19, make 3.81, Docker 29.8 (on PATH only via ~/.zshrc; agent shells need PATH=$HOME/.docker/bin:$PATH). No Xcode, no Android SDK." },
+    { "date": "2026-10-12", "text": "Parallel subagents running `npm install` in the same workspace corrupted node_modules (ENOTEMPTY, missing files). Fixed with `npm ci`. Rule added to CLAUDE.md: npm installs are serialized." },
+    { "date": "2026-10-12", "text": "postgis image healthcheck must use TCP (`pg_isready -h localhost`): the init-time server is socket-only, so a socket check passes too early and migrate fails with connection refused." },
+    { "date": "2026-10-12", "text": "Expo SDK 57 / RN 0.86 / React 19.2 with React Compiler lint rules: refs read in render-time closures are flagged. The session keeps the API client and access token at module scope." },
+    { "date": "2026-10-12", "text": "chi RealIP and httprate.LimitByIP/Limit are deprecated (spoofing). Use middleware.ClientIPFrom* + httprate.LimitBy." },
+    { "date": "2026-10-12", "text": "To verify: PostGIS availability on DO Managed PostgreSQL dev databases (production: false) before the first staging deploy." }
+  ],
+  "deferred": [
+    { "item": "OpenTelemetry traces + Sentry (§8 observability)", "when": "M1, before staging users" },
+    { "item": "Maestro mobile e2e + Playwright admin e2e", "when": "M1 DoD (Maestro flows listed there); needs a simulator or EAS" },
+    { "item": "Evasion checks (salted email/device hashes) + device bits on login", "when": "M1 (bans exist then)" },
+    { "item": "Signed upload URLs / EXIF strip", "when": "M1 avatars" },
+    { "item": "Email-verified gate on join/create", "when": "M1 (nothing to join yet)" },
+    { "item": "Admin dashboard counts", "when": "M1 admin areas" }
+  ],
+  "blockers": [],
+  "pending_questions": [
+    { "id": "Q2", "text": "Staging: DigitalOcean account + API token, domain for the API and email (SPF/DKIM/DMARC). .do/app.yaml is ready.", "blocks": ["M0.mobile_auth_against_staging"] },
+    { "id": "Q3", "text": "GitHub remote for CI (.github/workflows/ci.yml is ready). Apple Developer team + Sign in with Apple service ID, Google OAuth client IDs, Brevo/Mailjet API keys, Apple DeviceCheck key + Play Integrity project.", "blocks": ["M0.ci_green", "oauth", "email delivery", "device ban bits"] },
+    { "id": "Q4", "text": "Expo/EAS account for iOS/Android development builds (or install Xcode + Android Studio locally).", "blocks": ["M0.ios_android_dev_builds"] },
+    { "id": "Q5", "text": "Commit the M0 work to main and push? Nothing is committed yet.", "blocks": ["drift check in CI (git diff needs a baseline)"] }
+  ],
+  "next_steps": [
+    "Answer Q2-Q5. Then deploy staging and run the mobile auth flow against it",
+    "M1: enter plan mode; scope = §10 M1 (matches, discovery, courts/OSM, reporting/conduct score, admin areas, privacy export/deletion)"
+  ],
+  "iterations": [
+    { "date": "2026-10-12", "summary": "Bootstrapped CLAUDE.md, status.json, copied spec. Planned M0 in plan mode. Built monorepo, Go API + worker + seed, auth, admin TOTP, TS client, i18n, Expo + Vite shells, compose, Makefile, CI, DO spec. Haiku agents scaffolded the Expo and Vite apps. Local make ci is green." }
+  ]
+}
