@@ -2,6 +2,13 @@
 
 Spec: `docs/SPEC.md` (source of truth). State: `docs/status.json` (read first, update last).
 
+## Starting a new session
+1. `docs/status.json` → `current_milestone`, `next_steps`, `decisions` (D21: all external providers stay stubbed until the app works locally; don't ask for accounts), `stubs`, `deferred`.
+2. Sanity check: `export PATH=$HOME/.docker/bin:$PATH && make up && make seed && make ci`, all of which must pass before new work.
+3. Read the spec sections for the milestone, then use `EnterPlanMode` and get the plan approved before coding.
+4. Code map: `services/api/internal/{auth,httpapi,notifications,platform}` (hand-written), `internal/{api,db}` (generated), `cmd/{api,worker,seed}`; `apps/mobile/app` (Expo Router screens), `apps/mobile/lib` (session, i18n, ui); `apps/admin/src`; `packages/{api-client,i18n}`.
+5. A new endpoint goes `docs/openapi.yaml` → `db/queries/*.sql` → `make gen` → service in `internal/<domain>` → handler in `internal/httpapi` → integration test in `internal/httpapi/*_test.go`.
+
 ## Every iteration
 1. Read `docs/status.json`: `current_milestone`, `next_steps`, `pending_questions`, `blockers`.
 2. Do the work. Don't build features from later milestones (spec §0).

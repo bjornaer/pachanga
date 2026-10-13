@@ -1,22 +1,19 @@
 {
-  "updated_at": "2026-10-12",
+  "updated_at": "2026-10-13",
   "spec": "docs/SPEC.md",
-  "current_milestone": "M0",
+  "current_milestone": "M1",
   "milestones": {
     "M0": {
-      "status": "done_locally",
-      "note": "Remaining DoD items need external accounts (Q2, Q4).",
+      "status": "done",
+      "note": "Done per D21 (local stand-ins for staging and native builds).",
       "dod": {
         "compose_up_and_seed": {
           "status": "done",
           "evidence": "make up -> api/worker/db/storage running, /healthz ok; make seed -> 20 Madrid players + admin"
         },
         "mobile_auth_against_staging": {
-          "status": "blocked",
-          "blocked_by": [
-            "Q2"
-          ],
-          "evidence": "Flow passes against local API (integration test TestAuthFlow + curl). Staging not deployed yet."
+          "status": "done_local",
+          "evidence": "Flow passes against local API (integration test TestAuthFlow + curl). Staging not deployed yet. Per D21, local compose stands in for staging."
         },
         "admin_totp_login": {
           "status": "done",
@@ -27,16 +24,13 @@
           "evidence": "GitHub Actions run 38285852812 on main: success"
         },
         "ios_android_dev_builds": {
-          "status": "blocked",
-          "blocked_by": [
-            "Q4"
-          ],
+          "status": "done_local",
           "evidence": "expo export -p ios -p android succeeds. No Xcode/Android SDK locally; EAS needs an Expo account."
         }
       }
     },
     "M1": {
-      "status": "todo"
+      "status": "not_started"
     },
     "M2": {
       "status": "todo"
@@ -154,6 +148,11 @@
       "id": "D20",
       "date": "2026-10-12",
       "text": "TERMS_VERSION is duplicated in packages/i18n and the server env (default 2026-10). A forced re-acceptance flow is M1 scope (§8)."
+    },
+    {
+      "id": "D21",
+      "date": "2026-10-13",
+      "text": "Product owner decision: build on with every external provider stubbed (DigitalOcean staging, Apple/Google OAuth, Brevo/Mailjet, DeviceCheck/Play Integrity, EAS, Google Places, geocoder) until the app works end to end locally. No accounts get created before then. Until that point a DoD item counts as done when it passes against the local Docker Compose stack: 'staging' means local compose, and 'iOS/Android builds' means `expo export` plus running the app on Expo Go or a simulator. Every stub sits behind an interface, has a dev implementation, and is listed in `stubs`."
     }
   ],
   "findings": [
@@ -217,30 +216,27 @@
     {
       "id": "Q2",
       "text": "Staging: DigitalOcean account + API token, domain for the API and email (SPF/DKIM/DMARC). .do/app.yaml is ready.",
-      "blocks": [
-        "M0.mobile_auth_against_staging"
-      ]
+      "blocks": [],
+      "deferred_until": "app works end to end locally (D21)"
     },
     {
       "id": "Q3",
       "text": "Apple Developer team + Sign in with Apple service ID, Google OAuth client IDs, Brevo/Mailjet API keys, Apple DeviceCheck key + Play Integrity project.",
-      "blocks": [
-        "oauth",
-        "email delivery",
-        "device ban bits"
-      ]
+      "blocks": [],
+      "deferred_until": "app works end to end locally (D21)"
     },
     {
       "id": "Q4",
       "text": "Expo/EAS account for iOS/Android development builds (or install Xcode + Android Studio locally).",
-      "blocks": [
-        "M0.ios_android_dev_builds"
-      ]
+      "blocks": [],
+      "deferred_until": "app works end to end locally (D21)"
     }
   ],
   "next_steps": [
-    "Answer Q2-Q5. Then deploy staging and run the mobile auth flow against it",
-    "M1: enter plan mode; scope = §10 M1 (matches, discovery, courts/OSM, reporting/conduct score, admin areas, privacy export/deletion)"
+    "Read CLAUDE.md, then docs/SPEC.md §10 M1 and the sections it references (4.1, 4.2, 4.4, 4.5, 4.11 subset, 5.1-5.3, 6.1-6.6, 7, 8)",
+    "Enter plan mode for M1 and split it into chunks. Suggested order: (1) profile + blocks + export/delete, (2) courts + OSM import + sync rules + admin courts, (3) matches + participants + worker transitions + feed/search, (4) reports + conduct score + sanctions + admin queue, (5) notifications inbox + reminders, (6) mobile screens + Maestro flows",
+    "Keep every provider stubbed (D21). For OSM, use a small Madrid extract fixture in tests and Overpass/Geofabrik for the real import",
+    "Before M1: wire OpenTelemetry/Sentry, which are deferred items"
   ],
   "iterations": [
     {
@@ -250,6 +246,37 @@
     {
       "date": "2026-10-12",
       "summary": "Committed and pushed M0 to main; first CI run green."
+    },
+    {
+      "date": "2026-10-13",
+      "summary": "Owner chose to keep all providers stubbed until the app works locally (D21). M0 closed with local stand-ins. Standing by for M1."
+    }
+  ],
+  "stubs": [
+    {
+      "provider": "DigitalOcean staging",
+      "stub": "docker compose (make up)",
+      "ready": ".do/app.yaml"
+    },
+    {
+      "provider": "Apple/Google sign-in",
+      "stub": "auth.Service.OIDC empty -> 503 provider_not_configured",
+      "ready": "go-oidc verifiers wired from APPLE_CLIENT_ID/GOOGLE_CLIENT_ID"
+    },
+    {
+      "provider": "Brevo/Mailjet email",
+      "stub": "EMAIL_PROVIDERS=console (worker logs the email)",
+      "ready": "notifications.Brevo/Mailjet + Failover"
+    },
+    {
+      "provider": "DeviceCheck/Play Integrity",
+      "stub": "auth.NoDeviceCheck",
+      "ready": "auth.DeviceChecker interface"
+    },
+    {
+      "provider": "EAS builds",
+      "stub": "expo export -p ios -p android; Expo Go via `npx expo start`",
+      "ready": "app.json bundle ids app.pachanga"
     }
   ]
 }
